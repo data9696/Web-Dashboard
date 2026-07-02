@@ -54,9 +54,11 @@ export function PageLayout({
         </div>
       </div>
 
-      {loading && (
-        <div className="card p-10 text-center text-[var(--color-muted)]">
-          Loading sales data…
+     {loading && (
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-8 animate-pulse">
+          {[1,2,3,4,5,6].map((i) => (
+            <div key={i} className="card p-4 h-32 bg-[var(--color-border)]" />
+          ))}
         </div>
       )}
 

@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { DataProvider, useData } from './lib/DataContext'
 import { Sidebar } from './components/Sidebar'
 import { LoadingScreen } from './components/LoadingScreen'
+import { SkeletonPage } from './components/Skeleton'
 import { Home } from './pages/Home'
 import { SalesOverview } from './pages/SalesOverview'
 import { ChannelBrand } from './pages/ChannelBrand'
@@ -10,6 +11,7 @@ import { ProductAnalysis } from './pages/ProductAnalysis'
 function AppShell() {
   const { loading } = useData()
 
+  // Show branded loading screen on very first load (no data yet)
   if (loading) return <LoadingScreen />
 
   return (

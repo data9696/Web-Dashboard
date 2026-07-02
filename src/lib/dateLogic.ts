@@ -130,12 +130,14 @@ export function weekOverWeekWindows(asOf: string): ComparisonWindows {
  * Current: 1st of this month -> asOf.
  * Prior: 1st of last month -> same day-number (capped to last valid day of that month).
  */
-export function monthOverMonthWindows(asOf: string): ComparisonWindows {
+  export function monthOverMonthWindows(asOf: string): ComparisonWindows {
+  const yesterday = addDays(asOf, -1)
   const thisFirst = firstOfMonth(asOf)
-  const priorSamePoint = sameDayPrevMonth(asOf)
+  const currentEnd = yesterday >= thisFirst ? yesterday : asOf
+  const priorSamePoint = sameDayPrevMonth(currentEnd)
   const priorFirst = firstOfMonth(priorSamePoint)
   return {
-    current: { start: thisFirst, end: asOf },
+    current: { start: thisFirst, end: currentEnd },
     prior: { start: priorFirst, end: priorSamePoint },
   }
 }

@@ -10,9 +10,9 @@ import { Reveal } from '../components/Reveal'
 import { DateRangePicker, defaultDateRange } from '../components/DateRangePicker'
 import { QuickInsights } from '../components/QuickInsights'
 import { SortableTable } from '../components/SortableTable'
-import type { DateRange } from '../components/DateRangePicker'
 import { BrandDonut } from '../components/BrandDonut'
-import { BRAND_COLORS } from '../lib/brand'
+import { CalendarHeatmap } from '../components/CalendarHeatmap'
+import type { DateRange } from '../components/DateRangePicker'
 import {
   dayOverDayWindows,
   weekOverWeekWindows,
@@ -20,6 +20,7 @@ import {
   yearToDateWindow,
   weightedRunRate,
   formatDisplayDate,
+  formatShortDate,
   addDays,
   firstOfMonth,
 } from '../lib/dateLogic'
@@ -31,6 +32,7 @@ import {
   groupByDate,
   groupByHour,
 } from '../lib/aggregations'
+import { BRAND_COLORS } from '../lib/brand'
 
 const inr = (n: number) => '₹' + Math.round(n).toLocaleString('en-IN')
 
@@ -65,6 +67,15 @@ export function SalesOverview() {
     const since = addDays(asOfDate, -14)
     return groupByDate(sales.filter((s) => s.date >= since)).map((g) => g.sales)
   }, [sales, asOfDate])
+
+  // Pre-computed date labels
+  const todayLabel = formatDisplayDate(asOfDate)
+  const yesterdayLabel = formatDisplayDate(addDays(asOfDate, -1))
+  const wtdWindows = weekOverWeekWindows(asOfDate)
+  const mtmWindows = monthOverMonthWindows(asOfDate)
+  const wtdLabel = `${formatShortDate(wtdWindows.current.start)} – ${formatShortDate(asOfDate)}`
+  const mtmLabel = `${formatShortDate(mtmWindows.current.start)} – ${formatShortDate(mtmWindows.current.end)}`
+  const ytdLabel = `1 Jan – ${formatShortDate(asOfDate)}`
 
   const rangeSales = useMemo(
     () =>
@@ -116,12 +127,12 @@ export function SalesOverview() {
     >
       <Reveal>
         <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-8">
-          <MetricCard icon={ShoppingBag} label="Today" value={inr(dod.current)} changePct={dod.changePct} changeAmount={dod.changeAmount} accent="sage" sparkline={sparklineValues} />
-          <MetricCard icon={CalendarDays} label="Yesterday" value={inr(dod.prior)} accent="blue" sparkline={sparklineValues} />
-          <MetricCard icon={TrendingUp} label="WTD" value={inr(wow.current)} changePct={wow.changePct} changeAmount={wow.changeAmount} accent="purple" sparkline={sparklineValues} />
-          <MetricCard icon={Wallet} label="MTD" value={inr(mom.current)} changePct={mom.changePct} changeAmount={mom.changeAmount} accent="corn" sparkline={sparklineValues} />
-          <MetricCard icon={BarChart2} label="YTD" value={inr(ytdSales)} accent="emerald" sparkline={sparklineValues} />
-          <MetricCard icon={Crosshair} label="Run Rate (Wtd)" value={`${runRateValue.toFixed(1)} u/day`} accent="orange" sparkline={sparklineValues} />
+          <MetricCard icon={ShoppingBag} label="Today" value={inr(dod.current)} rawValue={dod.current} changePct={dod.changePct} changeAmount={dod.changeAmount} accent="sage" sparkline={sparklineValues} dateLabel={todayLabel} />
+          <MetricCard icon={CalendarDays} label="Yesterday" value={inr(dod.prior)} rawValue={dod.prior} accent="blue" sparkline={sparklineValues} dateLabel={yesterdayLabel} />
+          <MetricCard icon={TrendingUp} label="WTD" value={inr(wow.current)} rawValue={wow.current} changePct={wow.changePct} changeAmount={wow.changeAmount} accent="purple" sparkline={sparklineValues} dateLabel={wtdLabel} />
+          <MetricCard icon={Wallet} label="MTM" value={inr(mom.current)} rawValue={mom.current} changePct={mom.changePct} changeAmount={mom.changeAmount} accent="corn" sparkline={sparklineValues} dateLabel={mtmLabel} />
+          <MetricCard icon={BarChart2} label="YTD" value={inr(ytdSales)} rawValue={ytdSales} accent="emerald" sparkline={sparklineValues} dateLabel={ytdLabel} />
+          <MetricCard icon={Crosshair} label="Run Rate (Wtd)" value={`${runRateValue.toFixed(1)} u/day`} rawValue={runRateValue} accent="orange" sparkline={sparklineValues} dateLabel="30d weighted avg" />
         </div>
       </Reveal>
 
@@ -154,52 +165,13 @@ export function SalesOverview() {
         </div>
       </Reveal>
 
-      <Reveal delay={160}>
-        <Reveal delay={180}>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {/* Top Performer */}
-          {byChannel[0] && (() => {
-            const top = byChannel[0]
-            const worst = byChannel[byChannel.length - 1]
-            const total = byChannel.reduce((a, c) => a + c.sales, 0)
-            const topPct = total > 0 ? ((top.sales / total) * 100).toFixed(0) : '0'
-            const worstPct = total > 0 ? ((worst.sales / total) * 100).toFixed(0) : '0'
-            return (
-              <>
-                <div className="card p-5 border-l-4 border-[var(--color-sage)]">
-                  <div className="text-xs uppercase tracking-wide text-[var(--color-muted)] mb-2">🏆 Top Marketplace</div>
-                  <div className="font-display text-xl text-[var(--color-charcoal)] mb-1">{top.key}</div>
-                  <div className="text-2xl font-bold text-[var(--color-sage-dark)]">{inr(top.sales)}</div>
-                  <div className="text-sm text-[var(--color-muted)] mt-1">{topPct}% of total · {top.units} units</div>
-                </div>
-
-                <div className="card p-5 border-l-4 border-[#dc2626]">
-                  <div className="text-xs uppercase tracking-wide text-[var(--color-muted)] mb-2">⚠️ Lowest Marketplace</div>
-                  <div className="font-display text-xl text-[var(--color-charcoal)] mb-1">{worst.key}</div>
-                  <div className="text-2xl font-bold text-[#dc2626]">{inr(worst.sales)}</div>
-                  <div className="text-sm text-[var(--color-muted)] mt-1">{worstPct}% of total · {worst.units} units</div>
-                </div>
-
-                <div className="card p-5 border-l-4 border-[var(--color-corn)]">
-                  <div className="text-xs uppercase tracking-wide text-[var(--color-muted)] mb-2">🏅 Top Brand</div>
-                  {byBrand[0] && (() => {
-                    const topBrand = byBrand[0]
-                    const brandTotal = byBrand.reduce((a, b) => a + b.sales, 0)
-                    const brandPct = brandTotal > 0 ? ((topBrand.sales / brandTotal) * 100).toFixed(0) : '0'
-                    return (
-                      <>
-                        <div className="font-display text-xl text-[var(--color-charcoal)] mb-1">{topBrand.key}</div>
-                        <div className="text-2xl font-bold text-[#92400e]">{inr(topBrand.sales)}</div>
-                        <div className="text-sm text-[var(--color-muted)] mt-1">{brandPct}% of total · {topBrand.units} units</div>
-                      </>
-                    )
-                  })()}
-                </div>
-              </>
-            )
-          })()}
+      <Reveal delay={155}>
+        <div className="mb-8">
+          <CalendarHeatmap sales={sales} asOf={asOfDate} weeks={12} />
         </div>
       </Reveal>
+
+      <Reveal delay={160}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <SortableTable
             title={`Channel Mix — ${effectiveRange.label}`}
@@ -243,6 +215,47 @@ export function SalesOverview() {
               </tbody>
             </table>
           </div>
+        </div>
+      </Reveal>
+
+      <Reveal delay={180}>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {byChannel[0] && (() => {
+            const top = byChannel[0]
+            const worst = byChannel[byChannel.length - 1]
+            const total = byChannel.reduce((a, c) => a + c.sales, 0)
+            const topPct = total > 0 ? ((top.sales / total) * 100).toFixed(0) : '0'
+            const worstPct = total > 0 ? ((worst.sales / total) * 100).toFixed(0) : '0'
+            return (
+              <>
+                <div className="card p-5 border-l-4 border-[var(--color-sage)]">
+                  <div className="text-xs uppercase tracking-wide text-[var(--color-muted)] mb-2">🏆 Top Marketplace</div>
+                  <div className="font-display text-xl text-[var(--color-charcoal)] mb-1">{top.key}</div>
+                  <div className="text-2xl font-bold text-[var(--color-sage-dark)]">{inr(top.sales)}</div>
+                  <div className="text-sm text-[var(--color-muted)] mt-1">{topPct}% of total · {top.units} units</div>
+                </div>
+                <div className="card p-5 border-l-4 border-[#dc2626]">
+                  <div className="text-xs uppercase tracking-wide text-[var(--color-muted)] mb-2">⚠️ Lowest Marketplace</div>
+                  <div className="font-display text-xl text-[var(--color-charcoal)] mb-1">{worst.key}</div>
+                  <div className="text-2xl font-bold text-[#dc2626]">{inr(worst.sales)}</div>
+                  <div className="text-sm text-[var(--color-muted)] mt-1">{worstPct}% of total · {worst.units} units</div>
+                </div>
+                {byBrand[0] && (() => {
+                  const topBrand = byBrand[0]
+                  const brandTotal = byBrand.reduce((a, b) => a + b.sales, 0)
+                  const brandPct = brandTotal > 0 ? ((topBrand.sales / brandTotal) * 100).toFixed(0) : '0'
+                  return (
+                    <div className="card p-5 border-l-4 border-[var(--color-corn)]">
+                      <div className="text-xs uppercase tracking-wide text-[var(--color-muted)] mb-2">🏅 Top Brand</div>
+                      <div className="font-display text-xl text-[var(--color-charcoal)] mb-1">{topBrand.key}</div>
+                      <div className="text-2xl font-bold text-[#92400e]">{inr(topBrand.sales)}</div>
+                      <div className="text-sm text-[var(--color-muted)] mt-1">{brandPct}% of total · {topBrand.units} units</div>
+                    </div>
+                  )
+                })()}
+              </>
+            )
+          })()}
         </div>
       </Reveal>
 
