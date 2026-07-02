@@ -60,7 +60,6 @@ export function Home() {
 
   const dod = useMemo(() => buildMetricSummary(sales, dayOverDayWindows(asOfDate)), [sales, asOfDate])
   const wow = useMemo(() => buildMetricSummary(sales, weekOverWeekWindows(asOfDate)), [sales, asOfDate])
-  const mom = useMemo(() => buildMetricSummary(sales, monthOverMonthWindows(asOfDate)), [sales, asOfDate])
   const ytdWindow = useMemo(() => yearToDateWindow(asOfDate), [asOfDate])
   const ytdSales = useMemo(() => sumSales(filterSales(sales, ytdWindow)), [sales, ytdWindow])
   const yesterdaySales = dod.prior
@@ -130,27 +129,47 @@ export function Home() {
       </Reveal>
 
       {/* Total Sales Summary Card with Brand Filter */}
-      <Reveal delay={95}>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 items-stretch">
-          <MTMComparison sales={sales} asOfDate={asOfDate} brandFilter={homeBrandFilter} />
-          <WoWComparison sales={sales} asOfDate={asOfDate} brandFilter={homeBrandFilter} />
-          <TargetProgress current={monthTotalSales} target={MONTHLY_TARGET} />
-        </div>
-      </Reveal>
+      {/* Sales Summary Card */}
+<Reveal delay={90}>
+  <SalesSummaryCard
+    sales={monthSales}
+    label="This Month"
+    onBrandChange={setHomeBrandFilter}
+  />
+</Reveal>
+
+{/* MTM + WoW + Target */}
+<Reveal delay={95}>
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <MTMComparison
+      sales={sales}
+      asOfDate={asOfDate}
+      brandFilter={homeBrandFilter}
+    />
+
+    <WoWComparison
+      sales={sales}
+      asOfDate={asOfDate}
+      brandFilter={homeBrandFilter}
+    />
+
+    <TargetProgress
+      current={monthTotalSales}
+      target={MONTHLY_TARGET}
+    />
+  </div>
+</Reveal>
 
       {/* Trend Chart + MTM Comparison + Target Progress */}
       <Reveal delay={100}>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          <div className="card p-5 lg:col-span-2">
-            <h3 className="font-display text-lg mb-4">30-Day Sales Trend</h3>
-            <TrendChart trend={trend} />
-          </div>
-          <div className="flex flex-col gap-6">
-            <MTMComparison sales={sales} asOfDate={asOfDate} brandFilter={homeBrandFilter} />
-            <TargetProgress current={monthTotalSales} target={MONTHLY_TARGET} />
-          </div>
-        </div>
-      </Reveal>
+  <div className="card p-5 mb-8">
+    <h3 className="font-display text-lg mb-4">
+      30-Day Sales Trend
+    </h3>
+
+    <TrendChart trend={trend} />
+  </div>
+</Reveal>
 
       {/* Calendar Heatmap */}
       <Reveal delay={130}>

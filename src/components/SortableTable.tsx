@@ -43,7 +43,7 @@ function PctBar({ pct }: { pct: number }) {
   )
 }
 
-export function SortableTable({ title, rows, showRank = false, showPct = false }: Props) {
+export function SortableTable({ title, rows, showRank = false }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>('sales')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
 
