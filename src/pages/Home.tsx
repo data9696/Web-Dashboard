@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ShoppingBag,
@@ -20,6 +20,9 @@ import { BrandDonut } from '../components/BrandDonut'
 import { TrendChart } from '../components/TrendChart'
 import { QuickInsights } from '../components/QuickInsights'
 import { CalendarHeatmap } from '../components/CalendarHeatmap'
+import { MTMComparison } from '../components/MTMComparison'
+import { WoWComparison } from '../components/WoWComparison'
+import { SalesSummaryCard } from '../components/SalesSummaryCard'
 import { resolveChannelStyle } from '../components/ChannelBadge'
 import { Reveal } from '../components/Reveal'
 import {
@@ -53,6 +56,7 @@ const NAV_ITEMS = [
 
 export function Home() {
   const { sales, asOfDate, trueLatestDate } = useData()
+  const [homeBrandFilter, setHomeBrandFilter] = useState('All')
 
   const dod = useMemo(() => buildMetricSummary(sales, dayOverDayWindows(asOfDate)), [sales, asOfDate])
   const wow = useMemo(() => buildMetricSummary(sales, weekOverWeekWindows(asOfDate)), [sales, asOfDate])
@@ -65,6 +69,14 @@ export function Home() {
     () => weightedRunRate(sales.map((s) => ({ date: s.date, qty: s.qty })), asOfDate),
     [sales, asOfDate]
   )
+
+  // Full month sales (1st to today)
+  const monthTotalSales = useMemo(() => {
+    const { start } = monthOverMonthWindows(asOfDate).current
+    return sales
+      .filter((s) => s.date >= start && s.date <= asOfDate)
+      .reduce((a, s) => a + s.invoiceAmount, 0)
+  }, [sales, asOfDate])
 
   const trend = useMemo(() => {
     const since = addDays(asOfDate || trueLatestDate, -30)
@@ -95,44 +107,59 @@ export function Home() {
   )
   const channelTotal = byChannel.reduce((acc, c) => acc + c.sales, 0)
 
-  // Pre-computed date labels for KPI cards
+  // Pre-computed date labels
   const todayLabel = formatDisplayDate(asOfDate)
   const yesterdayLabel = formatDisplayDate(addDays(asOfDate, -1))
   const wtdWindows = weekOverWeekWindows(asOfDate)
-  const mtmWindows = monthOverMonthWindows(asOfDate)
   const wtdLabel = `${formatShortDate(wtdWindows.current.start)} – ${formatShortDate(asOfDate)}`
-  const mtmLabel = `${formatShortDate(mtmWindows.current.start)} – ${formatShortDate(mtmWindows.current.end)}`
+  const monthLabel = `1 ${new Date(asOfDate).toLocaleDateString('en-GB', { month: 'short' })} – ${formatShortDate(asOfDate)}`
   const ytdLabel = `1 Jan – ${formatShortDate(asOfDate)}`
 
   return (
-    <PageLayout title="Welcome back" subtitle={`Fashion 1972NE · Cocoon Care & The Boo Boo Club · Last sync: ${formatDisplayDate(trueLatestDate)}`}>
+    <PageLayout title="Welcome back" subtitle="Cocoon Care & The Boo Boo Club">
+      {/* KPI Cards */}
       <Reveal>
         <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-8">
           <MetricCard icon={ShoppingBag} label="Today" value={inr(dod.current)} rawValue={dod.current} changePct={dod.changePct} changeAmount={dod.changeAmount} accent="sage" sparkline={sparklineValues} dateLabel={todayLabel} />
           <MetricCard icon={CalendarDays} label="Yesterday" value={inr(yesterdaySales)} rawValue={yesterdaySales} accent="blue" sparkline={sparklineValues} dateLabel={yesterdayLabel} />
-          <MetricCard icon={TrendingUp} label="WTD" value={inr(wow.current)} rawValue={wow.current} changePct={wow.changePct} changeAmount={wow.changeAmount} accent="purple" sparkline={sparklineValues} dateLabel={wtdLabel} />
-          <MetricCard icon={Wallet} label="MTM" value={inr(mom.current)} rawValue={mom.current} changePct={mom.changePct} changeAmount={mom.changeAmount} accent="corn" sparkline={sparklineValues} dateLabel={mtmLabel} />
+          <MetricCard icon={TrendingUp} label="This Week" value={inr(wow.current)} rawValue={wow.current} changePct={wow.changePct} changeAmount={wow.changeAmount} accent="purple" sparkline={sparklineValues} dateLabel={wtdLabel} />
+          <MetricCard icon={Wallet} label="Month Sales" value={inr(monthTotalSales)} rawValue={monthTotalSales} accent="corn" sparkline={sparklineValues} dateLabel={monthLabel} />
           <MetricCard icon={BarChart2} label="YTD" value={inr(ytdSales)} rawValue={ytdSales} accent="emerald" sparkline={sparklineValues} dateLabel={ytdLabel} />
           <MetricCard icon={Crosshair} label="Run Rate (Wtd)" value={`${runRateValue.toFixed(1)} u/day`} rawValue={runRateValue} accent="orange" sparkline={sparklineValues} dateLabel="30d weighted avg" />
         </div>
       </Reveal>
 
+      {/* Total Sales Summary Card with Brand Filter */}
+      <Reveal delay={95}>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 items-stretch">
+          <MTMComparison sales={sales} asOfDate={asOfDate} brandFilter={homeBrandFilter} />
+          <WoWComparison sales={sales} asOfDate={asOfDate} brandFilter={homeBrandFilter} />
+          <TargetProgress current={monthTotalSales} target={MONTHLY_TARGET} />
+        </div>
+      </Reveal>
+
+      {/* Trend Chart + MTM Comparison + Target Progress */}
       <Reveal delay={100}>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           <div className="card p-5 lg:col-span-2">
             <h3 className="font-display text-lg mb-4">30-Day Sales Trend</h3>
             <TrendChart trend={trend} />
           </div>
-          <TargetProgress current={mom.current} target={MONTHLY_TARGET} />
+          <div className="flex flex-col gap-6">
+            <MTMComparison sales={sales} asOfDate={asOfDate} brandFilter={homeBrandFilter} />
+            <TargetProgress current={monthTotalSales} target={MONTHLY_TARGET} />
+          </div>
         </div>
       </Reveal>
 
+      {/* Calendar Heatmap */}
       <Reveal delay={130}>
         <div className="mb-8">
           <CalendarHeatmap sales={sales} asOf={asOfDate} weeks={12} />
         </div>
       </Reveal>
 
+      {/* Brand + Marketplace Share */}
       <Reveal delay={150}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <div className="card p-5">
@@ -140,7 +167,7 @@ export function Home() {
             <BrandDonut data={byBrand} colors={BRAND_COLORS} />
           </div>
           <div className="card p-5">
-            <h3 className="font-display text-lg mb-4">Marketplace Share — This Month (Top 5)</h3>
+            <h3 className="font-display text-lg mb-4">Marketplace Share — Top 5</h3>
             {byChannel.map((c) => (
               <ShareBar
                 key={c.key}
@@ -153,12 +180,14 @@ export function Home() {
         </div>
       </Reveal>
 
+      {/* Quick Insights */}
       <Reveal delay={200}>
         <div className="mb-8">
           <QuickInsights sales={monthSales} label="This Month" />
         </div>
       </Reveal>
 
+      {/* Nav Cards */}
       <Reveal delay={250}>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {NAV_ITEMS.map((t) => {

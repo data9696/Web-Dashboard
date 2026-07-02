@@ -20,5 +20,5 @@ export function brandFromListingSku(listingSku: string | null | undefined): Bran
 export const BRAND_COLORS: Record<Brand, string> = {
   'Cocoon Care': '#7c9070', // sage
   'The Boo Boo Club': '#e3a9a0', // dusty pink
-  Other: '#8a8680', // muted
+  Other: '#e46c0a', // muted
 }

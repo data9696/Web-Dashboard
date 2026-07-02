@@ -1,15 +1,18 @@
 import type { LucideIcon } from 'lucide-react'
 import { MiniTrend } from './MiniTrend'
+import { useCountUp } from '../hooks/useCountUp'
 
 interface MetricCardProps {
   label: string
   value: string
+  rawValue?: number
   changePct?: number | null
   changeAmount?: number
   changeLabel?: string
   accent?: 'sage' | 'pink' | 'blue' | 'corn' | 'purple' | 'emerald' | 'orange'
   icon?: LucideIcon
   sparkline?: number[]
+  dateLabel?: string
 }
 
 const ACCENT_MAP: Record<string, { text: string; bg: string }> = {
@@ -22,15 +25,27 @@ const ACCENT_MAP: Record<string, { text: string; bg: string }> = {
   orange:  { text: '#c2410c', bg: '#ffedd5' },
 }
 
+function AnimatedNumber({ rawValue, displayValue }: { rawValue: number; displayValue: string }) {
+  const animated = useCountUp(rawValue)
+  const isRupee = displayValue.startsWith('₹')
+  const hasSuffix = displayValue.includes(' ') && !isRupee
+  const suffix = hasSuffix ? ' ' + displayValue.split(' ').slice(1).join(' ') : ''
+  if (isRupee) return <span>₹{Math.round(animated).toLocaleString('en-IN')}</span>
+  if (suffix) return <span>{Number(animated).toFixed(1)}{suffix}</span>
+  return <span>{Math.round(animated).toLocaleString('en-IN')}</span>
+}
+
 export function MetricCard({
   label,
   value,
+  rawValue,
   changePct,
   changeAmount,
   changeLabel,
   accent = 'sage',
   icon: Icon,
   sparkline,
+  dateLabel,
 }: MetricCardProps) {
   const isUp = (changePct ?? 0) >= 0
   const hasChange = changePct !== undefined && changePct !== null
@@ -53,8 +68,17 @@ export function MetricCard({
       </div>
 
       <div className="font-display text-xl text-[var(--color-charcoal)] leading-tight">
-        {value}
+        {rawValue !== undefined
+          ? <AnimatedNumber rawValue={rawValue} displayValue={value} />
+          : <span>{value}</span>
+        }
       </div>
+
+      {dateLabel && (
+        <div className="text-[10px] text-[var(--color-muted)] opacity-60 -mt-1">
+          {dateLabel}
+        </div>
+      )}
 
       {hasChange && (
         <div className="flex items-center gap-1.5">

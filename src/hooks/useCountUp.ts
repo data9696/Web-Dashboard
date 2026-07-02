@@ -1,34 +1,41 @@
 import { useEffect, useRef, useState } from 'react'
 
-export function useCountUp(target: number, duration = 2000): number {
-  const [current, setCurrent] = useState(0)
+export function useCountUp(target: number, duration = 1500): number {
+  const [current, setCurrent] = useState(target)
   const rafRef = useRef<number | undefined>(undefined)
   const startRef = useRef<number | undefined>(undefined)
-  const prevTarget = useRef<number>(0)
+  const prevTarget = useRef<number>(target)
+  const firstRun = useRef(true)
 
   useEffect(() => {
+    // First render — show value instantly, no animation
+    if (firstRun.current) {
+      firstRun.current = false
+      setCurrent(target)
+      prevTarget.current = target
+      return
+    }
+
     if (target === prevTarget.current) return
     const from = prevTarget.current
     prevTarget.current = target
 
-    const delay = setTimeout(() => {
-      const animate = (ts: number) => {
-        if (startRef.current === undefined) startRef.current = ts
-        const elapsed = ts - startRef.current
-        const progress = Math.min(elapsed / duration, 1)
-        const eased = 1 - Math.pow(1 - progress, 3)
-        setCurrent(Math.round(from + (target - from) * eased))
-        if (progress < 1) {
-          rafRef.current = requestAnimationFrame(animate)
-        }
+    const animate = (ts: number) => {
+      if (startRef.current === undefined) startRef.current = ts
+      const elapsed = ts - startRef.current
+      const progress = Math.min(elapsed / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setCurrent(Math.round(from + (target - from) * eased))
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(animate)
       }
-      startRef.current = undefined
-      if (rafRef.current !== undefined) cancelAnimationFrame(rafRef.current)
-      rafRef.current = requestAnimationFrame(animate)
-    }, 300)
+    }
+
+    startRef.current = undefined
+    if (rafRef.current !== undefined) cancelAnimationFrame(rafRef.current)
+    rafRef.current = requestAnimationFrame(animate)
 
     return () => {
-      clearTimeout(delay)
       if (rafRef.current !== undefined) cancelAnimationFrame(rafRef.current)
     }
   }, [target, duration])

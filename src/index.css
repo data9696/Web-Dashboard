@@ -29,8 +29,8 @@
   --color-emerald: #059669;
   --color-emerald-light: #d1fae5;
 
-  --font-display: "Fraunces", "Georgia", serif;
-  --font-body: "Inter", "Helvetica Neue", sans-serif;
+  --font-display: "Calibri", "Candara", "Segoe UI", sans-serif;
+  --font-body: "Comfortaa", "Helvetica Neue", sans-serif;
 
   --radius-card: 1rem;
 }
@@ -44,6 +44,7 @@
 
   h1, h2, h3, h4 {
     font-family: var(--font-display);
+    font-weight: 700;
   }
 
   /* Dark theme color variables — toggled by adding class="dark" to <html> */

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import clsx from 'clsx'
-import { LayoutDashboard, BarChart3, Store, Package, Menu, X } from 'lucide-react'
+import { LayoutDashboard, BarChart3, Store, Package, Menu, X, User } from 'lucide-react'
 
 const NAV_ITEMS = [
   { to: '/', label: 'Home', icon: LayoutDashboard },
@@ -12,6 +12,8 @@ const NAV_ITEMS = [
 
 export function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const userName = localStorage.getItem('dashboard_user_name') || 'Team'
+  const initials = userName.slice(0, 2).toUpperCase()
 
   const navContent = (
     <>
@@ -59,8 +61,24 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="px-6 py-4 border-t border-[var(--color-border)] text-[11px] text-[var(--color-muted)]">
-        Data synced every 2 hours
+      {/* User Profile — #14 */}
+      <div className="px-4 py-4 border-t border-[var(--color-border)]">
+        <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-[var(--color-cream)]">
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0"
+            style={{ background: 'var(--color-sage)' }}
+          >
+            {initials}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium text-[var(--color-charcoal)] truncate">{userName}</div>
+            <div className="text-[11px] text-[var(--color-muted)]">Sales Team</div>
+          </div>
+          <User size={14} className="text-[var(--color-muted)] shrink-0" />
+        </div>
+        <div className="text-[11px] text-[var(--color-muted)] text-center mt-2">
+          Data synced every 2 hours
+        </div>
       </div>
     </>
   )
