@@ -137,6 +137,7 @@ export function Home() {
 <Reveal delay={90}>
   <SalesSummaryCard
     sales={monthSales}
+    asOfDate={asOfDate}
     label="This Month"
     onBrandChange={setHomeBrandFilter}
   />
