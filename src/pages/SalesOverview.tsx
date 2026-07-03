@@ -113,6 +113,7 @@ export function SalesOverview() {
       <Reveal delay={100}>
         <SalesSummaryCard
           sales={monthSales}
+          asOfDate={asOfDate}
           label="This Month"
           onBrandChange={setOverviewBrandFilter}
         />
