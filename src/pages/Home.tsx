@@ -62,10 +62,6 @@ export function Home() {
   const wow = useMemo(() => buildMetricSummary(sales, weekOverWeekWindows(asOfDate)), [sales, asOfDate])
   const ytdWindow = useMemo(() => yearToDateWindow(asOfDate), [asOfDate])
   const ytdSales = useMemo(() => sumSales(filterSales(sales, ytdWindow)), [sales, ytdWindow])
-  const allChannels = useMemo(() =>
-    Array.from(new Set(sales.map(s => s.channel))).filter(Boolean).sort(),
-    [sales]
-  )
   const yesterdaySales = dod.prior
 
   const runRateValue = useMemo(
