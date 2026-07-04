@@ -18,7 +18,6 @@ import {
   formatDisplayDate,
   formatShortDate,
   addDays,
-  firstOfMonth,
 } from '../lib/dateLogic'
 import {
   buildMetricSummary,
