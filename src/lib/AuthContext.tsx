@@ -7,6 +7,9 @@ export interface Profile {
   id: string
   email: string | null
   full_name: string | null
+  team: string | null
+  role: string | null
+  dashboard_use: string | null
   status: 'pending' | 'approved' | 'rejected'
   is_admin: boolean
 }
@@ -21,6 +24,8 @@ interface AuthContextValue {
   refreshProfile: () => Promise<void>
   resetPasswordForEmail: (email: string) => Promise<{ error: string | null }>
   updatePassword: (newPassword: string) => Promise<{ error: string | null }>
+  updateFullName: (newName: string) => Promise<{ error: string | null }>
+  updateMyProfile: (fields: { full_name: string; team: string; role: string; dashboard_use: string }) => Promise<{ error: string | null }>
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -91,8 +96,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message || null }
   }
 
+  async function updateFullName(newName: string) {
+    const { error } = await supabase.rpc('update_my_name', { new_name: newName })
+    if (!error) await refreshProfile()
+    return { error: error?.message || null }
+  }
+
+  async function updateMyProfile(fields: { full_name: string; team: string; role: string; dashboard_use: string }) {
+    const { error } = await supabase.rpc('update_my_profile', {
+      new_full_name: fields.full_name,
+      new_team: fields.team,
+      new_role: fields.role,
+      new_dashboard_use: fields.dashboard_use,
+    })
+    if (!error) await refreshProfile()
+    return { error: error?.message || null }
+  }
+
   return (
-    <AuthContext.Provider value={{ session, profile, loading, signUp, signIn, signOut, refreshProfile, resetPasswordForEmail, updatePassword }}>
+    <AuthContext.Provider value={{ session, profile, loading, signUp, signIn, signOut, refreshProfile, resetPasswordForEmail, updatePassword, updateFullName, updateMyProfile }}>
       {children}
     </AuthContext.Provider>
   )

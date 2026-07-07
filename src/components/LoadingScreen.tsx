@@ -1,18 +1,10 @@
 import { useEffect, useState } from 'react'
+import { useAuth } from '../lib/AuthContext'
 
 export function LoadingScreen() {
   const [progress, setProgress] = useState(8)
-  const [name, setName] = useState('')
-  const [submitted, setSubmitted] = useState(false)
-
-  // Check if name already saved from a previous visit
-  useEffect(() => {
-    const saved = localStorage.getItem('dashboard_user_name')
-    if (saved) {
-      setName(saved)
-      setSubmitted(true)
-    }
-  }, [])
+  const { profile } = useAuth()
+  const name = profile?.full_name || profile?.email || ''
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -20,13 +12,6 @@ export function LoadingScreen() {
     }, 200)
     return () => clearInterval(interval)
   }, [])
-
-  const handleSubmit = () => {
-    const trimmed = name.trim()
-    if (!trimmed) return
-    localStorage.setItem('dashboard_user_name', trimmed)
-    setSubmitted(true)
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[var(--color-cream)] overflow-hidden">
@@ -52,28 +37,7 @@ export function LoadingScreen() {
         Cocoon Care · The Boo Boo Club
       </div>
 
-      {!submitted ? (
-        <div className="mt-6 z-10 flex flex-col items-center gap-3">
-          <p className="text-sm text-[var(--color-muted)]">What's your name?</p>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-              placeholder="e.g. CoCoon Care"
-              autoFocus
-              className="text-sm border border-[var(--color-border)] rounded-lg px-4 py-2 bg-[var(--color-surface)] text-[var(--color-charcoal)] outline-none focus:border-[var(--color-sage)]"
-            />
-            <button
-              onClick={handleSubmit}
-              className="text-sm px-4 py-2 rounded-lg bg-[var(--color-sage)] text-white font-medium hover:bg-[var(--color-sage-dark)] transition-colors"
-            >
-              Go
-            </button>
-          </div>
-        </div>
-      ) : (
+      {name && (
         <div className="mt-4 z-10 text-sm text-[var(--color-sage-dark)] font-medium">
           Welcome back, {name} 👋
         </div>

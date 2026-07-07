@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import clsx from 'clsx'
-import { LayoutDashboard, BarChart3, Store, Package, Boxes, Menu, X, LogOut, ShieldCheck } from 'lucide-react'
+import { LayoutDashboard, BarChart3, Store, Package, Boxes, Menu, X, LogOut, ShieldCheck, Pencil } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
+import { getLocalAvatar } from '../lib/localAvatar'
+import { ProfileModal } from './ProfileModal'
 
 const NAV_ITEMS = [
   { to: '/', label: 'Home', icon: LayoutDashboard },
@@ -14,9 +16,12 @@ const NAV_ITEMS = [
 
 export function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [profileModalOpen, setProfileModalOpen] = useState(false)
   const { profile, signOut } = useAuth()
   const displayName = profile?.full_name || profile?.email || 'Team'
   const initials = displayName.slice(0, 2).toUpperCase()
+  const avatar = profile ? getLocalAvatar(profile.id) : null
+  const subtitle = profile?.role || profile?.team || 'Team Member'
 
   const navContent = (
     <>
@@ -82,19 +87,28 @@ export function Sidebar() {
         )}
       </nav>
 
-      {/* User Profile */}
       <div className="px-4 py-4 border-t border-[var(--color-border)]">
         <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-[var(--color-cream)]">
           <div
-            className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 overflow-hidden"
             style={{ background: 'var(--color-sage)' }}
           >
-            {initials}
+            {avatar ? <img src={avatar} alt="Profile" className="w-full h-full object-cover" /> : initials}
           </div>
+
           <div className="flex-1 min-w-0">
             <div className="text-sm font-medium text-[var(--color-charcoal)] truncate">{displayName}</div>
-            <div className="text-[11px] text-[var(--color-muted)]">Sales Team</div>
+            <div className="text-[11px] text-[var(--color-muted)] truncate">{subtitle}</div>
           </div>
+
+          <button
+            onClick={() => setProfileModalOpen(true)}
+            title="Edit profile"
+            className="text-[var(--color-muted)] hover:text-[var(--color-sage-dark)] shrink-0"
+          >
+            <Pencil size={14} />
+          </button>
+
           <button onClick={() => signOut()} title="Sign out" className="text-[var(--color-muted)] hover:text-[#dc2626] shrink-0">
             <LogOut size={16} />
           </button>
@@ -132,6 +146,8 @@ export function Sidebar() {
       >
         {navContent}
       </aside>
+
+      {profileModalOpen && <ProfileModal onClose={() => setProfileModalOpen(false)} />}
     </>
   )
 }

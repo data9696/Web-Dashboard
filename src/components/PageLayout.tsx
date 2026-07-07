@@ -7,6 +7,7 @@ import { GlobalSearch } from './GlobalSearch'
 import { formatDisplayDate } from '../lib/dateLogic'
 import { RefreshCw } from 'lucide-react'
 import { LastSynced } from './LastSynced'
+import { useAuth } from '../lib/AuthContext'
 
 function greeting(): string {
   const h = new Date().getHours()
@@ -25,7 +26,8 @@ export function PageLayout({
   children: ReactNode
 }) {
   const { loading, error, sales, stock, trueLatestDate, asOfDate, lastSyncedAt, refresh } = useData()
- const userName = localStorage.getItem('dashboard_user_name') || 'Team'
+ const { profile } = useAuth()
+const userName = profile?.full_name || profile?.email || 'Team'
 
   return (
     <div className="flex-1 px-4 md:px-8 py-4 md:py-6 w-full max-w-[1400px] pt-16 md:pt-6">
