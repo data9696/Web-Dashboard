@@ -11,6 +11,8 @@ import { HourlyChart } from './HourlyChart'
 
 const inr = (n: number) => '₹' + Math.round(n).toLocaleString('en-IN')
 
+const SPLIT_COLORS = ['#16a34a', '#2563eb', '#d97706', '#dc2626', '#7c3aed', '#0891b2', '#db2777', '#65a30d']
+
 type DatePreset = 'today' | 'yesterday' | 'last7' | 'last15' | 'lastMonth' | 'last2Months' | 'custom'
 
 interface Period { start: string; end: string; label: string }
@@ -88,6 +90,7 @@ export function FilteredTrendSection({ sales, asOfDate, allChannels, title = 'Sa
   const [selectedBrands, setSelectedBrands] = useState<string[]>(['All'])
   const [selectedChannels, setSelectedChannels] = useState<string[]>(['All'])
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>(['All'])
+  const [splitBy, setSplitBy] = useState<'none' | 'brand' | 'channel'>('none')
   const [applied, setApplied] = useState<{
     preset: DatePreset; customStart: string; customEnd: string
     brands: string[]; channels: string[]; companies: string[]
@@ -165,11 +168,41 @@ export function FilteredTrendSection({ sales, asOfDate, allChannels, title = 'Sa
   const unitChange = priorUnits > 0 ? ((currentUnits - priorUnits) / priorUnits) * 100 : 0
 
   const isSingleDay = applied.preset === 'today' || applied.preset === 'yesterday'
+  const splitActive = splitBy !== 'none' && !isSingleDay
+
+  // Which groups to draw as separate lines, based on current filter selection
+  const splitGroups = useMemo(() => {
+    if (!splitActive) return []
+    if (splitBy === 'brand') {
+      return applied.brands.includes('All') ? ['Cocoon Care', 'The Boo Boo Club'] : applied.brands
+    }
+    // channel
+    return applied.channels.includes('All') ? allChannels : applied.channels
+  }, [splitActive, splitBy, applied.brands, applied.channels, allChannels])
 
   const chartData = useMemo(() => {
     if (isSingleDay) {
       return groupByHour(currentData).map(g => ({ label: g.key, [current.label]: g.sales }))
     }
+
+    if (splitActive && splitGroups.length > 0) {
+      // One series per brand/channel, current period only
+      const byGroupByDate = new Map<string, Map<string, number>>()
+      for (const g of splitGroups) byGroupByDate.set(g, new Map())
+      for (const s of currentData) {
+        const key = splitBy === 'brand' ? s.brand : s.channel
+        if (!byGroupByDate.has(key)) continue
+        const m = byGroupByDate.get(key)!
+        m.set(s.date, (m.get(s.date) ?? 0) + s.invoiceAmount)
+      }
+      const allDates = Array.from(new Set(currentData.map(s => s.date))).sort()
+      return allDates.map(d => {
+        const row: Record<string, string | number | undefined> = { label: formatShortDate(d) }
+        for (const g of splitGroups) row[g] = byGroupByDate.get(g)?.get(d) ?? 0
+        return row
+      })
+    }
+
     const curByDate = new Map<string, number>()
     for (const s of currentData) curByDate.set(s.date, (curByDate.get(s.date) ?? 0) + s.invoiceAmount)
     const priByDate = new Map<string, number>()
@@ -186,7 +219,7 @@ export function FilteredTrendSection({ sales, asOfDate, allChannels, title = 'Sa
       })
     }
     return result
-  }, [currentData, priorData, isSingleDay, current.label, prior.label])
+  }, [currentData, priorData, isSingleDay, current.label, prior.label, splitActive, splitGroups, splitBy])
 
   const filterLabel = [
     PRESETS.find(p => p.key === applied.preset)?.label,
@@ -268,6 +301,25 @@ export function FilteredTrendSection({ sales, asOfDate, allChannels, title = 'Sa
           </div>
         </div>
 
+        <div>
+          <div className="text-xs uppercase tracking-wide text-[var(--color-muted)] mb-2">Split Lines By</div>
+          <div className="flex flex-wrap gap-1.5">
+            {(['none', 'brand', 'channel'] as const).map(s => (
+              <button key={s} onClick={() => setSplitBy(s)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  splitBy === s
+                    ? 'bg-[#6d28d9] text-white shadow-sm'
+                    : 'bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-muted)] hover:border-[#6d28d9]'
+                }`}>{s === 'none' ? 'None (Combined)' : s === 'brand' ? 'Brand' : 'Channel'}</button>
+            ))}
+          </div>
+          {isSingleDay && splitBy !== 'none' && (
+            <div className="text-xs text-[var(--color-muted)] mt-1.5 italic">
+              Split view isn't available for Today/Yesterday's hourly chart — showing combined line.
+            </div>
+          )}
+        </div>
+
         <div className="flex justify-end pt-1">
           <button onClick={applyFilters}
             className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[var(--color-sage)] text-white text-sm font-medium hover:bg-[var(--color-sage-dark)] transition-colors shadow-md">
@@ -334,8 +386,17 @@ export function FilteredTrendSection({ sales, asOfDate, allChannels, title = 'Sa
             <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} />
             <Tooltip formatter={v => inr(Number(v))} />
             <Legend />
-            <Line type="monotone" dataKey={current.label} stroke="#16a34a" strokeWidth={2.5} dot={false} isAnimationActive={false} />
-            <Line type="monotone" dataKey={prior.label} stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" dot={false} isAnimationActive={false} />
+            {splitActive && splitGroups.length > 0 ? (
+              splitGroups.map((g, i) => (
+                <Line key={g} type="monotone" dataKey={g} stroke={SPLIT_COLORS[i % SPLIT_COLORS.length]}
+                  strokeWidth={2.5} dot={false} isAnimationActive={false} />
+              ))
+            ) : (
+              <>
+                <Line type="monotone" dataKey={current.label} stroke="#16a34a" strokeWidth={2.5} dot={false} isAnimationActive={false} />
+                <Line type="monotone" dataKey={prior.label} stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" dot={false} isAnimationActive={false} />
+              </>
+            )}
           </LineChart>
         </ResponsiveContainer>
       )}

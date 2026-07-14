@@ -25,7 +25,7 @@ import { WoWComparison } from '../components/WoWComparison'
 import { SalesSummaryCard } from '../components/SalesSummaryCard'
 import { resolveChannelStyle } from '../components/ChannelBadge'
 import { Reveal } from '../components/Reveal'
-import { InsightsWarningsCard } from '../components/InsightsWarningsCard'
+
 import {
   dayOverDayWindows,
   weekOverWeekWindows,
@@ -135,11 +135,11 @@ export function Home() {
         />
       </Reveal>
 
-      <Reveal delay={93}>
+      {/* <Reveal delay={93}>
          <div className="mb-6">
         <InsightsWarningsCard />
          </div>
-      </Reveal>
+      </Reveal> */}
       
       <Reveal delay={95}>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
