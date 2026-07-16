@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { BarChart2, Package, ShoppingCart, Filter } from 'lucide-react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend,
+  Tooltip, ResponsiveContainer, Legend, Brush,
 } from 'recharts'
 import type { NormalizedSale } from '../types'
 import { addDays, formatShortDate, parseDateString, toDateString, firstOfMonth } from '../lib/dateLogic'
@@ -90,7 +90,8 @@ export function FilteredTrendSection({ sales, asOfDate, allChannels, title = 'Sa
   const [selectedBrands, setSelectedBrands] = useState<string[]>(['All'])
   const [selectedChannels, setSelectedChannels] = useState<string[]>(['All'])
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>(['All'])
-  const [splitBy, setSplitBy] = useState<'none' | 'brand' | 'channel'>('none')
+  const [splitBy, setSplitBy] = useState<string[]>(['none'])
+  const [chartStyle, setChartStyle] = useState<'lines' | 'grid'>('lines')
   const [applied, setApplied] = useState<{
     preset: DatePreset; customStart: string; customEnd: string
     brands: string[]; channels: string[]; companies: string[]
@@ -139,6 +140,15 @@ export function FilteredTrendSection({ sales, asOfDate, allChannels, title = 'Sa
     } else setSelectedCompanies([...next, c])
   }
 
+  function toggleSplitBy(s: string) {
+    if (s === 'none') { setSplitBy(['none']); return }
+    const next = splitBy.filter(x => x !== 'none')
+    if (next.includes(s)) {
+      const r = next.filter(x => x !== s)
+      setSplitBy(r.length === 0 ? ['none'] : r)
+    } else setSplitBy([...next, s])
+  }
+
   function applyFilters() {
     setApplied({ preset, customStart, customEnd, brands: selectedBrands, channels: selectedChannels, companies: selectedCompanies })
   }
@@ -168,17 +178,32 @@ export function FilteredTrendSection({ sales, asOfDate, allChannels, title = 'Sa
   const unitChange = priorUnits > 0 ? ((currentUnits - priorUnits) / priorUnits) * 100 : 0
 
   const isSingleDay = applied.preset === 'today' || applied.preset === 'yesterday'
-  const splitActive = splitBy !== 'none' && !isSingleDay
+  const splitDims = splitBy.filter(x => x !== 'none') as ('brand' | 'channel')[]
+  const splitActive = splitDims.length > 0 && !isSingleDay
+  const splitByBoth = splitDims.includes('brand') && splitDims.includes('channel')
+
+  const brandGroupList = useMemo(
+    () => (applied.brands.includes('All') ? ['Cocoon Care', 'The Boo Boo Club'] : applied.brands),
+    [applied.brands]
+  )
+  const channelGroupList = useMemo(
+    () => (applied.channels.includes('All') ? allChannels : applied.channels),
+    [applied.channels, allChannels]
+  )
 
   // Which groups to draw as separate lines, based on current filter selection
   const splitGroups = useMemo(() => {
     if (!splitActive) return []
-    if (splitBy === 'brand') {
-      return applied.brands.includes('All') ? ['Cocoon Care', 'The Boo Boo Club'] : applied.brands
+    if (splitByBoth) {
+      const combos: string[] = []
+      for (const b of brandGroupList) for (const c of channelGroupList) combos.push(`${b} · ${c}`)
+      return combos
     }
-    // channel
-    return applied.channels.includes('All') ? allChannels : applied.channels
-  }, [splitActive, splitBy, applied.brands, applied.channels, allChannels])
+    if (splitDims.includes('brand')) return brandGroupList
+    return channelGroupList
+  }, [splitActive, splitByBoth, splitDims, brandGroupList, channelGroupList])
+
+  const MAX_VISIBLE_LINES = 8
 
   const chartData = useMemo(() => {
     if (isSingleDay) {
@@ -186,11 +211,11 @@ export function FilteredTrendSection({ sales, asOfDate, allChannels, title = 'Sa
     }
 
     if (splitActive && splitGroups.length > 0) {
-      // One series per brand/channel, current period only
+      // One series per brand/channel/combo, current period only
       const byGroupByDate = new Map<string, Map<string, number>>()
       for (const g of splitGroups) byGroupByDate.set(g, new Map())
       for (const s of currentData) {
-        const key = splitBy === 'brand' ? s.brand : s.channel
+        const key = splitByBoth ? `${s.brand} · ${s.channel}` : (splitDims.includes('brand') ? s.brand : s.channel)
         if (!byGroupByDate.has(key)) continue
         const m = byGroupByDate.get(key)!
         m.set(s.date, (m.get(s.date) ?? 0) + s.invoiceAmount)
@@ -219,7 +244,50 @@ export function FilteredTrendSection({ sales, asOfDate, allChannels, title = 'Sa
       })
     }
     return result
-  }, [currentData, priorData, isSingleDay, current.label, prior.label, splitActive, splitGroups, splitBy])
+  }, [currentData, priorData, isSingleDay, current.label, prior.label, splitActive, splitGroups, splitByBoth, splitDims])
+
+  // Rank groups by total revenue over the period, drop empty ones, cap to a readable number
+  // of lines — a chart with 20+ overlapping lines is unreadable regardless of color choice.
+  const rankedGroups = useMemo(() => {
+    if (!splitActive || splitGroups.length === 0) return []
+    const totals = new Map<string, number>()
+    for (const g of splitGroups) totals.set(g, 0)
+    for (const row of chartData) {
+      for (const g of splitGroups) {
+        const v = row[g as keyof typeof row]
+        if (typeof v === 'number') totals.set(g, (totals.get(g) ?? 0) + v)
+      }
+    }
+    return splitGroups
+      .filter(g => (totals.get(g) ?? 0) > 0)
+      .sort((a, b) => (totals.get(b) ?? 0) - (totals.get(a) ?? 0))
+  }, [splitActive, splitGroups, chartData])
+
+  const visibleGroups = rankedGroups.slice(0, MAX_VISIBLE_LINES)
+  const hiddenGroupCount = rankedGroups.length - visibleGroups.length
+
+  // Shared Y-axis max across all small-multiple mini charts, so their scales are comparable
+  const smallMultiplesMax = useMemo(() => {
+    if (visibleGroups.length === 0) return 0
+    let max = 0
+    for (const row of chartData) {
+      for (const g of visibleGroups) {
+        const v = row[g as keyof typeof row]
+        if (typeof v === 'number' && v > max) max = v
+      }
+    }
+    return max
+  }, [chartData, visibleGroups])
+
+  const [toggledOffGroups, setToggledOffGroups] = useState<Set<string>>(new Set())
+  function toggleGroupVisibility(key: string) {
+    setToggledOffGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   const filterLabel = [
     PRESETS.find(p => p.key === applied.preset)?.label,
@@ -305,15 +373,18 @@ export function FilteredTrendSection({ sales, asOfDate, allChannels, title = 'Sa
           <div className="text-xs uppercase tracking-wide text-[var(--color-muted)] mb-2">Split Lines By</div>
           <div className="flex flex-wrap gap-1.5">
             {(['none', 'brand', 'channel'] as const).map(s => (
-              <button key={s} onClick={() => setSplitBy(s)}
+              <button key={s} onClick={() => toggleSplitBy(s)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  splitBy === s
+                  splitBy.includes(s)
                     ? 'bg-[#6d28d9] text-white shadow-sm'
                     : 'bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-muted)] hover:border-[#6d28d9]'
                 }`}>{s === 'none' ? 'None (Combined)' : s === 'brand' ? 'Brand' : 'Channel'}</button>
             ))}
           </div>
-          {isSingleDay && splitBy !== 'none' && (
+          <div className="text-xs text-[var(--color-muted)] mt-1.5">
+            Select Brand, Channel, or both together (one line per brand × channel combo).
+          </div>
+          {isSingleDay && !splitBy.includes('none') && (
             <div className="text-xs text-[var(--color-muted)] mt-1.5 italic">
               Split view isn't available for Today/Yesterday's hourly chart — showing combined line.
             </div>
@@ -379,26 +450,89 @@ export function FilteredTrendSection({ sales, asOfDate, allChannels, title = 'Sa
       {isSingleDay ? (
         <HourlyChart trend={chartData as any} height={260} />
       ) : (
-        <ResponsiveContainer width="100%" height={260}>
-          <LineChart data={chartData}>
-            <CartesianGrid stroke="var(--color-border)" vertical={false} />
-            <XAxis dataKey="label" tick={{ fontSize: 10 }} minTickGap={20} />
-            <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} />
-            <Tooltip formatter={v => inr(Number(v))} />
-            <Legend />
-            {splitActive && splitGroups.length > 0 ? (
-              splitGroups.map((g, i) => (
-                <Line key={g} type="monotone" dataKey={g} stroke={SPLIT_COLORS[i % SPLIT_COLORS.length]}
-                  strokeWidth={2.5} dot={false} isAnimationActive={false} />
-              ))
-            ) : (
-              <>
-                <Line type="monotone" dataKey={current.label} stroke="#16a34a" strokeWidth={2.5} dot={false} isAnimationActive={false} />
-                <Line type="monotone" dataKey={prior.label} stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" dot={false} isAnimationActive={false} />
-              </>
-            )}
-          </LineChart>
-        </ResponsiveContainer>
+        <>
+          {splitActive && visibleGroups.length > 1 && (
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+              <div className="text-xs text-[var(--color-muted)]">
+                {hiddenGroupCount > 0 && (
+                  <>Showing top {visibleGroups.length} of {rankedGroups.length} combinations by revenue
+                  ({hiddenGroupCount} smaller/zero ones hidden) — narrow your Brand/Channel selection above to see the rest.</>
+                )}
+              </div>
+              <div className="flex gap-1.5">
+                <button onClick={() => setChartStyle('lines')}
+                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                    chartStyle === 'lines'
+                      ? 'bg-[#6d28d9] text-white'
+                      : 'bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-muted)]'
+                  }`}>Overlaid Lines</button>
+                <button onClick={() => setChartStyle('grid')}
+                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                    chartStyle === 'grid'
+                      ? 'bg-[#6d28d9] text-white'
+                      : 'bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-muted)]'
+                  }`}>Small Multiples</button>
+              </div>
+            </div>
+          )}
+
+          {splitActive && chartStyle === 'grid' && visibleGroups.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {visibleGroups.map((g, i) => (
+                <div key={g} className="border border-[var(--color-border)] rounded-lg p-2">
+                  <div className="text-xs font-medium mb-1 truncate" style={{ color: SPLIT_COLORS[i % SPLIT_COLORS.length] }} title={g}>
+                    {g}
+                  </div>
+                  <ResponsiveContainer width="100%" height={100}>
+                    <LineChart data={chartData} margin={{ top: 2, right: 4, bottom: 0, left: 4 }}>
+                      <YAxis domain={[0, smallMultiplesMax]} hide />
+                      <XAxis dataKey="label" hide />
+                      <Tooltip formatter={v => inr(Number(v))} labelFormatter={l => l} wrapperStyle={{ fontSize: 11 }} />
+                      <Line type="monotone" dataKey={g} stroke={SPLIT_COLORS[i % SPLIT_COLORS.length]}
+                        strokeWidth={2} dot={false} isAnimationActive={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={splitActive ? 340 : 300}>
+              <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                <CartesianGrid stroke="var(--color-border)" vertical={false} strokeOpacity={0.5} />
+                <XAxis dataKey="label" tick={{ fontSize: 10 }} minTickGap={20} />
+                <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} />
+                <Tooltip formatter={v => inr(Number(v))} wrapperStyle={{ fontSize: 12 }} />
+                {splitActive && visibleGroups.length > 0 ? (
+                  <>
+                    <Legend
+                      onClick={(e: any) => toggleGroupVisibility(e.dataKey)}
+                      wrapperStyle={{ fontSize: 11, paddingTop: 8, cursor: 'pointer' }}
+                      formatter={(value: string) => (
+                        <span style={{
+                          opacity: toggledOffGroups.has(value) ? 0.35 : 1,
+                          textDecoration: toggledOffGroups.has(value) ? 'line-through' : 'none',
+                        }}>{value}</span>
+                      )}
+                    />
+                    {visibleGroups.map((g, i) => (
+                      <Line key={g} type="monotone" dataKey={g} stroke={SPLIT_COLORS[i % SPLIT_COLORS.length]}
+                        strokeWidth={2} dot={false} isAnimationActive={false}
+                        hide={toggledOffGroups.has(g)} />
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                    <Line type="monotone" dataKey={current.label} stroke="#16a34a" strokeWidth={2.5} dot={false} isAnimationActive={false} />
+                    <Line type="monotone" dataKey={prior.label} stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" dot={false} isAnimationActive={false} />
+                  </>
+                )}
+                <Brush dataKey="label" height={22} stroke="var(--color-sage)" travellerWidth={8}
+                  fill="var(--color-cream)" />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </>
       )}
     </div>
   )
